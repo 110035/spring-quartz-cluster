@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+            http://www.springframework.org/schema/beans/spring-beans-4.0.xsd http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
+
+    <context:component-scan base-package="com.aaron.clusterquartz.job"/>
+
+    <bean id="timeZone" class="java.util.TimeZone" factory-method="getTimeZone">
+        <constructor-arg value="Asia/Shanghai" />
+    </bean>
+
+
+    <!-- For times when you need more complex processing, passing data to the scheduled job -->
+    <bean name="complexJobDetail" 	class="org.springframework.scheduling.quartz.JobDetailFactoryBean">
+        <property name="jobClass" value="com.aaron.clusterquartz.job.PrintCurrentTimeJobs" />
+       <!-- <property name="jobDataMap">
+            <map>
+                <entry key="clusterQuartz" value-ref="clusterQuartz" />
+            </map>
+        </property>-->
+
+         <property name="jobDataMap">
+            <map>
+                <entry key="clusterQuartz" value-ref="clusterQuartz" />
+            </map>
+        </property>
+        <property name="durability" value="true" />
+        <property name="group" value="group_1" />
+        <property name="name" value="job_1" />
+        <property name="description" value="测试" />
+        <property name="requestsRecovery" value="true" />
+
+    </bean>
+
+    <!-- Run the job every 2 seconds with initial delay of 1 second -->
+    <!-- Run the job every 5 seconds only on Weekends -->
+    <bean id="cronTrigger"  class="org.springframework.scheduling.quartz.CronTriggerFactoryBean">
+        <property name="jobDetail" ref="complexJobDetail" />
+        <property name="cronExpression" value="0/5 * * * * ?" />
+        <property name="timeZone" ref="timeZone" />
+    </bean>
+
+<!--
+   <bean  class="org.springframework.scheduling.quartz.SchedulerFactoryBean">
+
+
+        <property name="startupDelay" value="1"/>
+
+
+        <property name="jobDetails">
+            <list>
+                <ref bean="complexJobDetail" />
+            </list>
+        </property>
+
+        <property name="triggers">
+            <list>
+                <ref bean="cronTrigger" />
+            </list>
+        </property>
+    </bean>-->
+
+    <context:property-placeholder location="classpath:jdbc.properties"/>
+
+    <!--<bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource"
+          destroy-method="close">
+        <property name="driverClassName" value="com.mysql.jdbc.Driver"/>
+        <property name="url" value="jdbc:mysql://10.235.81.15:3306/quartz?useUnicode=true"/>
+        <property name="username" value="root"/>
+        <property name="password" value="123456"/>
+        &lt;!&ndash;maxActive: 最大连接数量&ndash;&gt;
+        <property name="maxActive" value="150"/>
+        &lt;!&ndash;minIdle: 最小空闲连接&ndash;&gt;
+        <property name="minIdle" value="5"/>
+        &lt;!&ndash;maxIdle: 最大空闲连接&ndash;&gt;
+        <property name="maxIdle" value="20"/>
+        &lt;!&ndash;initialSize: 初始化连接&ndash;&gt;
+        <property name="initialSize" value="30"/>
+        &lt;!&ndash; 连接被泄露时是否打印 &ndash;&gt;
+        <property name="logAbandoned" value="true"/>
+        &lt;!&ndash;removeAbandoned: 是否自动回收超时连接&ndash;&gt;
+        <property name="removeAbandoned"  value="true"/>
+        &lt;!&ndash;removeAbandonedTimeout: 超时时间(以秒数为单位)&ndash;&gt;
+        <property name="removeAbandonedTimeout" value="10"/>
+        &lt;!&ndash;maxWait: 超时等待时间以毫秒为单位 1000等于60秒&ndash;&gt;
+        <property name="maxWait" value="1000"/>
+        &lt;!&ndash; 在空闲连接回收器线程运行期间休眠的时间值,以毫秒为单位. &ndash;&gt;
+        <property name="timeBetweenEvictionRunsMillis" value="10000"/>
+        &lt;!&ndash;  在每次空闲连接回收器线程(如果有)运行时检查的连接数量 &ndash;&gt;
+        <property name="numTestsPerEvictionRun" value="10"/>
+        &lt;!&ndash; 1000 * 60 * 30  连接在池中保持空闲而不被空闲连接回收器线程&ndash;&gt;
+        <property name="minEvictableIdleTimeMillis" value="10000"/>
+    </bean>-->
+    <!-- 分布式事务配置 start -->
+
+    <!-- 配置线程池-->
+    <bean name="executor" class="org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor">
+        <property name="corePoolSize" value="15"/>
+        <property name="maxPoolSize" value="25"/>
+        <property name="queueCapacity" value="100"/>
+    </bean>
+
+   <!-- <bean name="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="dataSource"/>
+    </bean>-->
+
+
+    <bean name="quartzScheduler" class="org.springframework.scheduling.quartz.SchedulerFactoryBean" >
+        <property name="configLocation" value="classpath:quartz.properties"/>
+        <!--<property name="transactionManager" ref="transactionManager"/>-->
+
+        <!-- 任务唯一的名称，将会持久化到数据库-->
+        <property name="schedulerName" value="baseScheduler"/>
+
+        <!-- 每台集群机器部署应用的时候会更新触发器-->
+        <property name="overwriteExistingJobs" value="true"/>
+        <property name="applicationContextSchedulerContextKey" value="applicationContextSchedulerContextKey"/>
+
+        <property name="startupDelay" value="4"/>
+
+       <!-- <property name="jobFactory">
+            <bean class="com.aaron.clusterquartz.autowired.AutowiringSpringBeanJobFactory"/>
+        </property>
+-->
+        <property name="triggers">
+            <list>
+                <ref bean="cronTrigger"/>
+            </list>
+        </property>
+        <property name="jobDetails">
+            <list>
+                <ref bean="complexJobDetail"/>
+            </list>
+        </property>
+
+        <property name="taskExecutor" ref="executor"/>
+
+    </bean>
+
+
+
+
+
+</beans>
